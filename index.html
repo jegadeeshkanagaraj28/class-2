@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arakathir Program Library</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0F16; --panel:#131A24; --panel-alt:#1A2330; --border:#232D3B;
+    --accent:#F2A93B; --accent-soft:rgba(242,169,59,0.14);
+    --text:#E7EAF0; --muted:#8B93A3; --success:#4CAF7D; --danger:#E4584C;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 28px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#0E141D,#0B0F16);}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent);}
+  .brand h1{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;letter-spacing:0.02em;margin:0;}
+  .brand span{color:var(--muted);font-size:12px;font-family:'JetBrains Mono',monospace;}
+  .prompt-line{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);}
+  .layout{display:grid;grid-template-columns:280px 1fr;min-height:calc(100vh - 64px);}
+  @media (max-width:760px){.layout{grid-template-columns:1fr;} .sidebar{border-right:none;border-bottom:1px solid var(--border);}}
+  .sidebar{border-right:1px solid var(--border);padding:20px 14px;background:var(--panel);}
+  .sidebar-head{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin:0 8px 12px;}
+  .program-item{display:flex;align-items:center;gap:10px;padding:10px 10px;border-radius:6px;cursor:pointer;margin-bottom:2px;font-size:14px;border:1px solid transparent;}
+  .program-item:hover{background:var(--panel-alt);}
+  .program-item.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+  .program-item .idx{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);width:22px;flex-shrink:0;}
+  .program-item.active .idx{color:var(--accent);}
+  .program-item .title-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .lang-badge{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);border:1px solid var(--border);padding:1px 5px;border-radius:4px;}
+  .main{padding:28px;}
+  .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;height:60vh;color:var(--muted);}
+  .empty-state h2{font-size:18px;color:var(--text);margin:0 0 8px;font-weight:600;}
+  .ide-window{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--panel);box-shadow:0 20px 50px rgba(0,0,0,0.35);}
+  .ide-titlebar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--panel-alt);border-bottom:1px solid var(--border);}
+  .traffic{display:flex;gap:7px;}
+  .traffic span{width:11px;height:11px;border-radius:50%;display:block;}
+  .traffic .r{background:#E4584C;} .traffic .y{background:#F2C14E;} .traffic .g{background:#4CAF7D;}
+  .file-tab{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);}
+  .copy-btn{font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--accent);color:#1A1200;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:600;}
+  .copy-btn.copied{background:var(--success);color:#06251a;}
+  .program-meta{padding:16px 20px 0;}
+  .program-meta h2{font-size:20px;margin:0 0 4px;font-weight:600;}
+  .program-meta .meta-row{display:flex;gap:10px;align-items:center;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;margin-bottom:14px;}
+  .code-body{display:flex;max-height:65vh;overflow:auto;padding:0 0 18px;}
+  .line-numbers{font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.6;color:#4A5568;text-align:right;padding:14px 12px 14px 18px;user-select:none;border-right:1px solid var(--border);}
+  pre{margin:0;padding:14px 20px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.6;white-space:pre;color:var(--text);flex:1;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="dot"></span>
+    <h1>ARAKATHIR</h1>
+    <span>Program Library</span>
+  </div>
+  <div class="prompt-line" id="statusLine">$ ./library --status loading…</div>
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <p class="sidebar-head">Programs</p>
+    <div id="programList"></div>
+  </div>
+  <div class="main">
+    <div id="viewerArea"></div>
+  </div>
+</div>
+
+<script>
+let programs = [];
+let activeId = null;
+
+function escapeHtml(str){
+  return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+async function loadPrograms(){
+  try{
+    const res = await fetch('programs.json', {cache:'no-store'});
+    programs = await res.json();
+  }catch(e){
+    programs = [];
+    document.getElementById('statusLine').textContent = "$ ./library --status could not load programs.json";
+    render();
+    return;
+  }
+  document.getElementById('statusLine').textContent = `$ ./library --status ${programs.length} program${programs.length===1?'':'s'}`;
+  render();
+}
+
+function render(){ renderList(); renderViewer(); }
+
+function renderList(){
+  const list = document.getElementById('programList');
+  list.innerHTML = '';
+  programs.forEach((p, i) => {
+    const item = document.createElement('div');
+    item.className = 'program-item' + (p.id === activeId ? ' active' : '');
+    item.innerHTML = `
+      <span class="idx">${String(i+1).padStart(2,'0')}</span>
+      <span class="title-text">${escapeHtml(p.title)}</span>
+      <span class="lang-badge">${p.language}</span>`;
+    item.addEventListener('click', () => { activeId = p.id; render(); });
+    list.appendChild(item);
+  });
+}
+
+function renderViewer(){
+  const viewerArea = document.getElementById('viewerArea');
+  if(programs.length === 0){
+    viewerArea.innerHTML = `
+      <div class="empty-state">
+        <p class="mono">$ ./library --list</p>
+        <h2>No programs yet</h2>
+        <p>Check back soon — your trainer is adding programs.</p>
+      </div>`;
+    return;
+  }
+  const active = programs.find(p => p.id === activeId) || programs[0];
+  activeId = active.id;
+  const lines = active.code.split('\n');
+  const lineNums = lines.map((_,i)=>i+1).join('\n');
+  const ext = active.language === 'c' ? 'c' : active.language === 'java' ? 'java' : active.language === 'python' ? 'py' : 'txt';
+
+  viewerArea.innerHTML = `
+    <div class="ide-window">
+      <div class="ide-titlebar">
+        <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="file-tab">${escapeHtml(active.title.toLowerCase().replace(/\s+/g,'_'))}.${ext}</div>
+        <button class="copy-btn" id="copyBtn">Copy</button>
+      </div>
+      <div class="program-meta">
+        <h2>${escapeHtml(active.title)}</h2>
+        <div class="meta-row">
+          <span>${active.language.toUpperCase()}</span>
+        </div>
+      </div>
+      <div class="code-body">
+        <div class="line-numbers">${lineNums}</div>
+        <pre>${escapeHtml(active.code)}</pre>
+      </div>
+    </div>`;
+
+  document.getElementById('copyBtn').addEventListener('click', () => copyCode(active.code));
+}
+
+function copyCode(code){
+  const btn = document.getElementById('copyBtn');
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = 'Copied ✓';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = code;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = 'Copied ✓';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+  });
+}
+
+loadPrograms();
+</script>
+</body>
+</html>
